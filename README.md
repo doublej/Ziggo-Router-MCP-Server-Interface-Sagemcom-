@@ -1,8 +1,16 @@
-# Sagemcom MCP Server & CLI
+
+<img src="screenshot.png" alt="Sagemcom MCP in action" width="400" align="right" style="border:5px solid #ccc;margin:40px"/>
+
+_Tested on MacOS w/ [Sagemcom F3896LG](https://www.ziggo.nl/klantenservice/apparaten/wifi-modems/smartwifi-modem-zwart) and only supports port management at this time_
+# Sagemcom Configuration MCP Server & CLI
+
+
 
 A command-line tool and MCP server to manage port forwarding on Sagemcom routers, specifically tested with Ziggo 
-SmartWifi modems. This project provides both a direct command-line interface (`sagemcom-cli`) for managing port 
+SmartWifi modem. This project provides both a direct command-line interface (`sagemcom-cli`) for managing port 
 forwarding rules and an MCP server for integration with tools like Claude Desktop.
+
+
 
 ## Table of Contents
 
