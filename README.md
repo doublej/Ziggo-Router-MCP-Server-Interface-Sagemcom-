@@ -31,32 +31,33 @@ forwarding rules and an MCP server for integration with tools like Claude Deskto
 
 Get up and running in under 2 minutes:
 
-1. **Install UV** (if not already installed):
+1. **Download the latest release** from the releases page and extract it:
    ```sh
-   curl -LsSf https://astral.sh/uv/install.sh | sh
+   tar -xvf sagemcom-mcp-0.1.1.tar.gz
+   cd sagemcom-mcp-0.1.1
    ```
 
-2. **Download the latest release** from the releases page and extract it:
+2. **Run the GUI installer OR use command line**:
    ```sh
-   tar -xvf sagemcom-mcp-server-0.1.0.tar.gz
-   cd sagemcom-mcp-server-0.1.0
-   ```
-
-3. **Run the installer**:
-   ```sh
+   # Double-click `run_installer.app` to call one of the two installers:
+   
    # For CLI tools only
-   ./install-cli-dist.sh
+   ./install-cli.sh
    
    # OR for Claude Desktop integration
-   ./install-mcp-dist.sh
+   ./install-mcp.sh
    ```
 
-4. **Set your router password**:
+3. **Configure your router password** (choose one):
    ```sh
+   # Option 1: Environment variable
    export SAGEMCOM_MODEM_PASSWORD="your_router_password"
+   
+   # Option 2: Use 1Password CLI
+   export SAGEMCOM_ONEPASSWORD_ITEM="Ziggo SmartWifi Router"
    ```
 
-5. **Start using it**:
+4. **Start using it**:
    ```sh
    # List current port forwards
    sagemcom-cli list

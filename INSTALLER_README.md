@@ -3,7 +3,7 @@
 After extracting the archive, you have several installation options:
 
 ## Option 1: GUI Installation (macOS only)
-**Double-click "Install Sagemcom MCP.app"**
+**Double-click "run_installer.app"**
 - A dialog will appear asking you to choose installation type
 - Select either "Full Installation" or "CLI Only"
 - Terminal will open and run the installer
@@ -11,11 +11,11 @@ After extracting the archive, you have several installation options:
 
 ## Option 2: Direct Installation (All platforms)
 ```bash
-# For full installation (MCP Server + CLI + Claude Desktop)
-./install-dist.sh
+# For MCP installation
+./install-mcp.sh
 
 # For CLI tools only
-./install-cli-dist.sh
+./install-cli.sh
 ```
 
 ## Uninstallation
