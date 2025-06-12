@@ -3,14 +3,15 @@ Shared Sagemcom Router Client
 Common interface for tcp_udp REST and XPath API approaches
 """
 
-import requests
 import json
 import logging
-import subprocess
 import os
-from typing import Optional, Dict, Any, List, Union
-from dataclasses import dataclass
+import subprocess
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Union
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PortForwardingRule:
     """Standardized port forwarding rule representation"""
+
     name: str
     local_address: str
     local_port: int
@@ -27,7 +29,17 @@ class PortForwardingRule:
 
     def to_rest_payload(self) -> Dict[str, Any]:
         """Convert to REST API payload format"""
-        return {"rule": {"localAddress": self.local_address, "localStartPort": self.local_port, "localEndPort": self.local_port, "externalStartPort": self.external_port, "externalEndPort": self.external_port, "protocol": self.protocol.lower(), "enable": self.enabled}}
+        return {
+            "rule": {
+                "localAddress": self.local_address,
+                "localStartPort": self.local_port,
+                "localEndPort": self.local_port,
+                "externalStartPort": self.external_port,
+                "externalEndPort": self.external_port,
+                "protocol": self.protocol.lower(),
+                "enable": self.enabled,
+            }
+        }
 
 
 class RouterClientInterface(ABC):
@@ -58,6 +70,16 @@ class RouterClientInterface(ABC):
         """Get URL for browser session transfer"""
         pass
 
+    @abstractmethod
+    def remove_port_forward_by_port(self, external_port: int) -> bool:
+        """Remove a port forwarding rule by external port number"""
+        pass
+
+    @abstractmethod
+    def logout(self) -> bool:
+        """Logout from current session"""
+        pass
+
 
 class SagemcomRestClient(RouterClientInterface):
     """REST API client for Sagemcom routers (Ziggo-style)"""
@@ -77,28 +99,58 @@ class SagemcomRestClient(RouterClientInterface):
     def _get_password_from_1password(self, item_name) -> Optional[str]:
         """Get router password from 1Password CLI"""
         try:
-            result = subprocess.run(["op", "item", "get", item_name, "--fields", "password", "--format", "json"], capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                [
+                    "op",
+                    "item",
+                    "get",
+                    item_name,
+                    "--fields",
+                    "password",
+                    "--format",
+                    "json",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=30,  # Allow 30 seconds for 1Password CLI
+            )
             data = json.loads(result.stdout)
             return data.get("value")
-        except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError) as e:
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            json.JSONDecodeError,
+            FileNotFoundError,
+        ) as e:
             logger.error(f"Failed to get password from 1Password: {e}")
             return None
 
     def _get_password(self) -> Optional[str]:
         """Get router password from various sources in order of priority"""
 
-        return os.getenv("SAGEMCOM_MODEM_PASSWORD", self._get_password_from_1password(os.getenv("SAGEMCOM_ONEPASSWORD_ITEM", "Ziggo")))
+        return os.getenv(
+            "SAGEMCOM_MODEM_PASSWORD",
+            self._get_password_from_1password(
+                os.getenv("SAGEMCOM_ONEPASSWORD_ITEM", "Ziggo")
+            ),
+        )
 
     def authenticate(self) -> bool:
         """Authenticate with the router using REST API"""
         password = self._get_password()
         if not password:
-            logger.error("Could not retrieve password from any source (direct, env var SAGEMCOM_MODEM_PASSWORD, or 1Password)")
+            logger.error(
+                "Could not retrieve password from any source (direct, env var SAGEMCOM_MODEM_PASSWORD, or 1Password)"
+            )
             return False
 
         try:
             response = requests.post(
-                    self._get_rest_url("user/login"), json={"password": password}, headers={"Connection": "keep-alive"}, timeout=10
+                self._get_rest_url("user/login"),
+                json={"password": password},
+                headers={"Connection": "keep-alive"},
+                timeout=10,
             )
             response.raise_for_status()
 
@@ -126,7 +178,9 @@ class SagemcomRestClient(RouterClientInterface):
         """Get current port forwarding rules via REST API"""
         try:
             response = requests.get(
-                    self._get_rest_url("network/portforwarding"), headers=self._get_auth_headers(), timeout=10
+                self._get_rest_url("network/portforwarding"),
+                headers=self._get_auth_headers(),
+                timeout=10,
             )
             response.raise_for_status()
 
@@ -138,16 +192,28 @@ class SagemcomRestClient(RouterClientInterface):
                 rules_list = port_forwarding_data.get("rules", [])
             else:
                 # Fallback for different API structure
-                rules_list = port_forwarding_data if isinstance(port_forwarding_data, list) else []
+                rules_list = (
+                    port_forwarding_data
+                    if isinstance(port_forwarding_data, list)
+                    else []
+                )
 
             # Transform the rules to a more standard format
             formatted_rules = []
             for rule_item in rules_list:
-                if isinstance(rule_item, dict) and 'rule' in rule_item:
-                    rule_data = rule_item['rule']
-                    formatted_rule = {'id':           rule_item.get('id'), 'name': f"Rule {rule_item.get('id', 'Unknown')}",  # Ziggo doesn't have names, use ID
-                                      'localAddress': rule_data.get('localAddress'), 'localPort': rule_data.get('localStartPort'), 'externalPort': rule_data.get('externalStartPort'), 'protocol': rule_data.get('protocol', '').replace('_', '/'),  # Convert tcp_udp to tcp/udp
-                                      'enabled':      rule_data.get('enable', False)}
+                if isinstance(rule_item, dict) and "rule" in rule_item:
+                    rule_data = rule_item["rule"]
+                    formatted_rule = {
+                        "id": rule_item.get("id"),
+                        "name": f"Rule {rule_item.get('id', 'Unknown')}",  # Ziggo doesn't have names, use ID
+                        "localAddress": rule_data.get("localAddress"),
+                        "localPort": rule_data.get("localStartPort"),
+                        "externalPort": rule_data.get("externalStartPort"),
+                        "protocol": rule_data.get("protocol", "").replace(
+                            "_", "/"
+                        ),  # Convert tcp_udp to tcp/udp
+                        "enabled": rule_data.get("enable", False),
+                    }
                     formatted_rules.append(formatted_rule)
 
             return formatted_rules
@@ -160,7 +226,10 @@ class SagemcomRestClient(RouterClientInterface):
         """Add a port forwarding rule via REST API"""
         try:
             response = requests.post(
-                    self._get_rest_url("network/portforwarding"), json=rule.to_rest_payload(), headers=self._get_auth_headers(), timeout=10
+                self._get_rest_url("network/portforwarding"),
+                json=rule.to_rest_payload(),
+                headers=self._get_auth_headers(),
+                timeout=10,
             )
             response.raise_for_status()
 
@@ -189,7 +258,7 @@ class SagemcomRestClient(RouterClientInterface):
         return self._delete_port_forward_rule(rule_to_delete, rule_name)
 
     def remove_port_forward_by_port(self, external_port: int) -> bool:
-        """Remove a port forwarding rule by external port number via REST API"""
+        """Remove a port forwarding rule by external port number via REST API."""
         # First get all rules to find the one to delete
         rules = self.get_port_forwards()
         matching_rules = []
@@ -199,11 +268,15 @@ class SagemcomRestClient(RouterClientInterface):
                 matching_rules.append(rule)
 
         if not matching_rules:
-            logger.error(f"No port forward rule found for external port {external_port}")
+            logger.error(
+                f"No port forward rule found for external port {external_port}"
+            )
             return False
 
         if len(matching_rules) > 1:
-            logger.error(f"Multiple rules found for port {external_port}. Found {len(matching_rules)} rules.")
+            logger.error(
+                f"Multiple rules found for port {external_port}. Found {len(matching_rules)} rules."
+            )
             return False
 
         rule_to_delete = matching_rules[0]
@@ -212,17 +285,30 @@ class SagemcomRestClient(RouterClientInterface):
 
     def _delete_port_forward_rule(self, rule_to_delete: dict, identifier: str) -> bool:
         """Helper method to delete a port forwarding rule"""
+        rule_id = rule_to_delete.get("id")
+        if not rule_id:
+            logger.error(f"Cannot delete rule {identifier} - missing rule ID")
+            return False
+
         try:
-            # Need to reconstruct the original API format for deletion
-            original_rule = {"id": rule_to_delete.get("id"), "rule": {"enable": rule_to_delete.get("enabled", False), "externalStartPort": rule_to_delete.get("externalPort"), "externalEndPort": rule_to_delete.get("externalPort"), "protocol": rule_to_delete.get("protocol", "tcp").replace("/", "_"), "localStartPort": rule_to_delete.get("localPort"), "localEndPort": rule_to_delete.get("localPort"), "localAddress": rule_to_delete.get("localAddress"), "readOnly": False}}
-
+            # Delete by rule ID in URL path (correct Sagemcom API approach)
             response = requests.delete(
-                    self._get_rest_url("network/portforwarding"), json={"portforwarding": {"rules": [original_rule]}}, headers=self._get_auth_headers(), timeout=10
+                self._get_rest_url(f"network/portforwarding/{rule_id}"),
+                headers=self._get_auth_headers(),
+                timeout=10,
             )
-            response.raise_for_status()
 
-            logger.info(f"Successfully removed port forward via REST API: {identifier}")
-            return True
+            # Sagemcom API returns 204 No Content on successful deletion
+            if response.status_code == 204:
+                logger.info(
+                    f"Successfully removed port forward via REST API: {identifier}"
+                )
+                return True
+            else:
+                logger.error(
+                    f"Failed to remove port forward {identifier} - HTTP {response.status_code}"
+                )
+                return False
 
         except requests.RequestException as e:
             logger.error(f"Failed to remove port forward via REST API: {e}")
@@ -244,8 +330,10 @@ class SagemcomRestClient(RouterClientInterface):
             return True
 
         try:
-            response = requests.delete(
-                    self._get_rest_url(f"user/{self.user_id}/token/{self.token}"), headers=self._get_auth_headers(), timeout=10
+            requests.delete(
+                self._get_rest_url(f"user/{self.user_id}/token/{self.token}"),
+                headers=self._get_auth_headers(),
+                timeout=10,
             )
             # Don't check status code as logout might return various codes
             self.token = None
@@ -263,7 +351,7 @@ class SagemcomRestClient(RouterClientInterface):
 
 def create_router_client(api_type: str = "rest", **kwargs) -> RouterClientInterface:
     """Factory function to create appropriate router client
-    
+
     Args:
         api_type: Type of API client ("rest")
         **kwargs: Additional arguments passed to client constructor

@@ -29,3 +29,7 @@ CLAUDE.md.bak
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# http recordings
+/webui.trace
+/webuirecording.csv
